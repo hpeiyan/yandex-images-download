@@ -12,12 +12,13 @@ from bs4 import BeautifulSoup
 from dataclasses import dataclass
 from dataclasses_json import dataclass_json
 from math import floor
+from hashlib import md5
 from seleniumwire import webdriver
 from typing import List, Union, Optional
 from urllib.parse import urlparse, urlencode
 from urllib3.exceptions import SSLError, NewConnectionError
 
-Driver = Union[webdriver.Chrome, webdriver.Edge, 
+Driver = Union[webdriver.Chrome, webdriver.Edge,
                webdriver.Firefox, webdriver.Safari]
 
 DRIVER_NAME_TO_CLASS = {
@@ -183,7 +184,8 @@ class YandexImagesDownloader():
     """Class to download images from yandex.ru
     """
 
-    MAIN_URL = "https://yandex.ru/images/search"
+    # MAIN_URL = "https://yandex.ru/images/search"
+    # MAIN_URL = "https://yandex.com/images/search"
     MAXIMUM_PAGES_PER_SEARCH = 50
     MAXIMUM_IMAGES_PER_PAGE = 30
     MAXIMUM_FILENAME_LENGTH = 50
@@ -195,19 +197,21 @@ class YandexImagesDownloader():
                  isize=None,
                  exact_isize=None,
                  iorient=None,
-                 extension=None,
+                 type=None,
                  color=None,
                  itype=None,
                  commercial=None,
                  recent=None,
-                 pool=None):
+                 pool=None,
+                 similar_images=False,
+                 yandex_country="com"):
         self.driver = driver
         self.output_directory = pathlib.Path(output_directory)
         self.limit = limit
         self.isize = isize
         self.exact_isize = exact_isize
         self.iorient = iorient
-        self.extension = extension
+        self.type = type
         self.color = color
         self.itype = itype
         self.commercial = commercial
@@ -221,13 +225,19 @@ class YandexImagesDownloader():
         }
         self.cookies = {}
         self.pool = pool
+        self.similar_images = similar_images
+        self.yandex_country = 'https://yandex.' + yandex_country + '/images/search'
 
         logging.info(f'Output directory is set to "{self.output_directory}/"')
         logging.info(f"Limit of images is set to {self.limit}")
 
     def get_response(self):
+        current_url = self.driver.current_url
+        if self.similar_images:
+            current_url = current_url.split("&cbir_id=")[0]
+
         pathes = [request.path for request in self.driver.requests]
-        request = self.driver.requests[pathes.index(self.driver.current_url)]
+        request = self.driver.requests[pathes.index(current_url)]
         return request.response
 
     def init_url_params(self):
@@ -237,8 +247,8 @@ class YandexImagesDownloader():
             "iw": None,
             "ih": None,
             "iorient": self.iorient,
-            "type": self.extension,
-            "color": self.color,
+            "type": self.type,
+            "icolor": self.color,
             "itype": self.itype,
             "commercial": self.commercial,
             "recent": self.recent
@@ -253,7 +263,10 @@ class YandexImagesDownloader():
         return params
 
     def get_url_params(self, page, text):
-        params = {"p": page, "text": text}
+        if self.similar_images:
+            params = {"p": page, "url": text, "rpt": "imagelike"}
+        else:
+            params = {"p": page, "text": text}
         params.update(self.url_params)
 
         return params
@@ -267,7 +280,7 @@ class YandexImagesDownloader():
                                  errors_count=None,
                                  img_url_results=[])
 
-        self.check_captcha_and_get(YandexImagesDownloader.MAIN_URL,
+        self.check_captcha_and_get(self.yandex_country,
                                    params=self.get_url_params(page, keyword))
 
         response = self.get_response()
@@ -328,19 +341,27 @@ class YandexImagesDownloader():
                                        errors_count=None,
                                        page_results=[])
 
-        self.check_captcha_and_get(YandexImagesDownloader.MAIN_URL,
-                                   params={
-                                       'text': keyword,
-                                       "nomisspell": 1
-                                   })
+        if self.similar_images:
+            params = {
+                "url": keyword,
+                "rpt": "imagelike"
+            }
+        else:
+            params = {
+                "text": keyword,
+                "nomisspell": 1
+            }
+
+        self.check_captcha_and_get(self.yandex_country,
+                                   params=params)
         response = self.get_response()
 
         if not (response.reason == "OK"):
             keyword_result = "fail"
             keyword_result.message = (
                 "Failed to fetch a search page."
-                f" url: {YandexImagesDownloader.MAIN_URL},"
-                f" params: {{'text': {keyword}}},"
+                f" url: {self.yandex_country},"
+                f" params: {params},"
                 f" status_code: {response.status_code}")
             return keyword_result
 
@@ -400,8 +421,13 @@ class YandexImagesDownloader():
         for keyword in keywords:
             logging.info(f"Downloading images for {keyword}...")
 
+            if self.similar_images:
+                sub_directory = md5(keyword.encode("utf-8")).hexdigest()
+            else:
+                sub_directory = keyword
+
             keyword_result = self.download_images_by_keyword(
-                keyword, sub_directory=keyword)
+                keyword, sub_directory=sub_directory)
             dowloader_result.keyword_results.append(keyword_result)
 
             logging.info(keyword_result.message)

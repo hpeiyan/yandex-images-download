@@ -1,11 +1,14 @@
 import time
 import logging
 import pathlib
-import sys
+import sys, os
+
+p = os.getcwd()[:-16]
+sys.path.append(p)
 
 from multiprocessing import Pool
-from .downloader import YandexImagesDownloader, get_driver, download_single_image, save_json
-from .parse import parse_args
+from yandex_download.downloader import YandexImagesDownloader, get_driver, download_single_image, save_json
+from yandex_download.parse import parse_args
 
 
 def scrap(args):
@@ -28,9 +31,9 @@ def scrap(args):
         downloader = YandexImagesDownloader(driver, args.output_directory,
                                             args.limit, args.isize,
                                             args.exact_isize, args.iorient,
-                                            args.extension, args.color,
+                                            args.type, args.icolor,
                                             args.itype, args.commercial,
-                                            args.recent, pool)
+                                            args.recent, pool, args.similar_images, args.yandex_country)
 
         start_time = time.time()
         total_errors = 0

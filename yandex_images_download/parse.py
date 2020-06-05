@@ -76,12 +76,12 @@ def parse_args():
                         default=None,
                         choices=["horizontal", "vertical", "square"])
     parser.add_argument(
-        "--itype",
+        "--type",
         help="image type",
         type=str,
         default=None,
         choices=["photo", "clipart", "lineart", "face", "demotivator"])
-    parser.add_argument("--color",
+    parser.add_argument("--icolor",
                         help="filter on color",
                         type=str,
                         default=None,
@@ -90,7 +90,7 @@ def parse_args():
                             "green", "blue", "violet", "white", "black"
                         ])
 
-    parser.add_argument("--extension",
+    parser.add_argument("--itype",
                         help="image extension type",
                         type=str,
                         default=None,
@@ -117,6 +117,22 @@ def parse_args():
                         help="number of workers",
                         type=int,
                         default=0)
+
+    parser.add_argument(
+        "-s",
+        "--similar-images",
+        help=("search similar images by urls instead of keywords"),
+        type=str)
+
+    parser.add_argument(
+        "-y",
+        "--yandex-country",
+        default='com',
+        type=str,
+        help=("destinatate the target of Yandex Image Domain to craw"),
+        choices=["com", "ru", "ua",
+                 "by", "kz", "uz",
+                 "tr"])
 
     args = parser.parse_args()
 
